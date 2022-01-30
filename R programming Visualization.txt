@@ -1,0 +1,243 @@
+# Read file
+
+data_analysis <- read.csv(file.choose(), header=T)
+str(data_analysis)
+
+
+#Build Corpus
+library(tm)
+library(ggplot2)
+corpus <- iconv(data_analysis$tweets, to = "UTF-8")
+corpus <- Corpus(VectorSource(corpus))
+inspect(corpus[1:5])
+
+
+#Clean Text 
+
+corpus <- tm_map(corpus, tolower)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus,removePunctuation)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus,removeNumbers)
+inspect(corpus[1:5])
+
+cleanset <- tm_map(corpus, removeWords, stopwords('english'))
+inspect(cleanset[1:5])
+
+removeURL <- function(corpus) gsub('http[:alnum:]]*', '',corpus) 
+cleanset <- tm_map(corpus,content_transformer(removeURL))
+inspect(cleanset[1:5])
+
+#Non-ASCII Values
+
+any(grepl("I_WAS_NOT_ASCII", iconv(cleanset, "latin1", "ASCII", sub="I_WAS_NOT_ASCII")))
+
+
+grep("I_WAS_NOT_ASCII", iconv(cleanset, "latin1", "ASCII", sub="I_WAS_NOT_ASCII"))
+
+
+cleanset <- tm_map(cleanset, stripWhitespace)
+inspect(corpus[1:5])
+
+
+# Term document matrix
+tdm <- TermDocumentMatrix(cleanset)
+tdm <- as.matrix(tdm)
+tdm <- tdm[rowSums(tdm)>15,]
+tdm[1:10, 1:10]
+
+
+
+# Term document matrix
+tdm <- TermDocumentMatrix(cleanset)
+tdm
+tdm <- as.matrix(tdm)
+tdm[1:10, 1:20]
+
+
+
+# Bar plot of frequency of terms 
+w <- rowSums(tdm)
+w <- subset(w, w>=5)
+barplot(w,
+        las = 2,
+        col = rainbow(50))
+
+
+
+# Word cloud
+library(wordcloud)
+w <- sort(rowSums(tdm), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(w),
+          freq = w,
+          max.words = 300,
+          random.order = F,
+          min.freq = 5,
+          colors = brewer.pal(8, 'Dark2'),
+          scale = c(5, 0.7),
+          rot.per = 0.7)
+
+
+library(wordcloud2)
+w <- data.frame(names(w), w)
+colnames(w) <- c('word', 'freq')
+wordcloud2(w,
+           size = 0.8,
+           shape = 'star',
+           rotateRatio = 0.5,
+           minSize = 1)
+
+
+# Network of terms
+library(igraph)
+tdm[tdm>1] <- 1
+termM <- tdm %*% t(tdm)
+termM[1:10,1:10]
+
+g <- graph.adjacency(termM, weighted = T, mode = 'undirected')
+g
+g <- simplify(g)
+V(g)$label <- V(g)$name
+V(g)$degree <- degree(g)
+
+
+# Histogram of node degree
+hist(V(g)$degree,
+     breaks = 100,
+     col = 'green',
+     main = 'Histogram of Node Degree',
+     ylab = 'Frequency',
+     xlab = 'Degree of Vertices')
+
+
+# Network diagram
+set.seed(222)
+plot(g)
+plot(g,
+     vertex.color='green',
+     vertex.size = 4,
+     vertex.label.dist = 1.5,
+     vertex.label = NA)
+
+# Community detection
+comm <- cluster_edge_betweenness(g)
+plot(comm, g)
+
+
+prop <- cluster_label_prop(g)
+plot(prop, g)
+
+greed <- cluster_fast_greedy(as.undirected(g))
+plot(greed, as.undirected(g))
+
+
+
+# Highlighting degrees
+V(g)$label.cex <- 2.2*V(g)$degree / max(V(g)$degree) + 0.3
+V(g)$label.color <- rgb(0, 0, .2, .8)
+V(g)$frame.color <- NA
+egam <- (log(E(g)$weight)+.4) / max(log(E(g)$weight) + .4)
+E(g)$color <- rgb(.5, .5, 0, egam)
+E(g)$width <- egam
+plot(g,
+     vertex.color='green',
+     vertex.size = V(g)$degree*.5)
+
+
+# Network of tweets
+tweetM <- t(tdm) %*% tdm
+
+g <- graph.adjacency(tweetM, weighted = T, mode = 'undirected')
+V(g)$degree <- degree(g)
+g <- simplify(g)
+hist(V(g)$degree,
+     breaks = 100,
+     col = 'green',
+     main = 'Histogram of Degree',
+     ylab = 'Freuqency',
+     xlab = 'Degree')
+
+
+
+# Term document matrix
+tdm <- TermDocumentMatrix(cleanset)
+tdm
+tdm <- as.matrix(tdm)
+tdm[1:10, 1:20]
+
+
+# Bar plot of frequency of terms 
+w <- rowSums(tdm)
+w <- subset(w, w>=5)
+barplot(w,
+        las = 2,
+        col = rainbow(50))
+
+
+# Word cloud
+library(wordcloud)
+w <- sort(rowSums(tdm), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(w),
+          freq = w,
+          max.words = 300,
+          random.order = F,
+          min.freq = 5,
+          colors = brewer.pal(8, 'Dark2'),
+          scale = c(5, 0.7),
+          rot.per = 0.7)
+
+
+library(wordcloud2)
+w <- data.frame(names(w), w)
+colnames(w) <- c('word', 'freq')
+wordcloud2(w,
+           size = 0.8,
+           shape = 'circle',
+           rotateRatio = 0.5,
+           minSize = 1)
+
+letterCloud(w,
+            word = "apple",
+            size=0.2)
+
+
+# Sentiment analysis
+library(syuzhet)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(reshape2)
+library(dplyr)
+library(sentimentr)
+
+
+# Read file
+miniproject <- read.csv(file.choose(), header = T)
+tweet <- iconv(miniproject$tweets, to = 'utf-8')
+
+sentiment(tweet)
+sentiment_by(tweet)
+extract_sentiment_terms(tweet)
+
+plot(sentiment(tweet))
+
+
+# Obtain sentiment scores
+s <- get_nrc_sentiment(tweet)
+head(s)
+tweet[4]
+get_nrc_sentiment('unable')
+
+library(sentimentr)
+
+
+# Bar plot
+barplot(colSums(s),
+        las = 2,
+        col = rainbow(10),
+        ylab = 'Count',
+        main = 'Sentiment Scores for Tata Safari Tweets')
